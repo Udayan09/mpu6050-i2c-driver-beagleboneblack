@@ -1,0 +1,33 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	/*Fragment 0: I2C Device*/
+	fragment@0 {
+		target = <&i2c2>;
+		__overlay__ {
+
+			#address-cells = <1>;
+            #size-cells = <0>;
+
+			mpu6500@68 {
+				compatible = "invensence,mpu6500";
+				reg = <0x68>;
+
+				interrupt-parent = <&gpio1>;
+				interrupts = <16 1>;		/*GPIO1 pin15 Rising edge*/
+			};
+		};
+	};
+
+
+	/*Fragment 1: Pin Mux*/
+	fragment@1 {
+		target = <&am33xx_pinmux>;
+		__overlay__ {
+			mpu_irq_pins: mpu_irq_pins{
+				pinctrl-single,pins = <0x040 0x2F>;
+			}
+		}
+	}
+};
