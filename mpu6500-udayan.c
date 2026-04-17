@@ -15,93 +15,132 @@
 
 
 /*IIO Channel specification definition*/
+
 static const struct iio_chan_spec mpu6500_channels[] = {
 	{
 		.type = IIO_ACCEL,
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),	
+		.modified = 1,
+		.channel2 = IIO_MOD_X,
+		.scan_index = MPU6500_SCAN_ACCEL_X,
+		.scan_type = {
+			.sign = 's',
+			.realbits = 16,
+			.storagebits = 16,
+			.endianness = IIO_BE,
+		},
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
+		.address = MPU6500_REG_ACCEL_X_OUT,
 	},
 	{
-		.type = IIO_ANGL,
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),	
+		.type = IIO_ACCEL,
+		.modified = 1,
+		.channel2 = IIO_MOD_Y,
+		.scan_index = MPU6500_SCAN_ACCEL_Y,
+		.scan_type = {
+			.sign = 's',
+			.realbits = 16,
+			.storagebits = 16,
+			.endianness = IIO_BE,
+		},
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
+		.address = MPU6500_REG_ACCEL_Y_OUT,
 	},
+	{
+		.type = IIO_ACCEL,
+		.modified = 1,
+		.channel2 = IIO_MOD_Z,
+		.scan_index = MPU6500_SCAN_ACCEL_Z,
+		.scan_type = {
+			.sign = 's',
+			.realbits = 16,
+			.storagebits = 16,
+			.endianness = IIO_BE,
+		},
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
+		.address = MPU6500_REG_ACCEL_Z_OUT,
+	},
+	{
+		.type = IIO_TEMP,
+		.scan_index = MPU6500_SCAN_TEMP,
+		.scan_type = {
+			.sign = 's',
+			.realbits = 16,
+			.storagebits = 16,
+			.endianness = IIO_BE,
+		},
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) | BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
+		.address = MPU6500_REG_TEMP_OUT,
+	},
+	{
+		.type = IIO_ANGL_VEL,
+		.modified = 1,
+		.channel2 = IIO_MOD_X,
+		.scan_index = MPU6500_SCAN_GYRO_X,
+		.scan_type = {
+			.sign = 's',
+			.realbits = 16,
+			.storagebits = 16,
+			.endianness = IIO_BE,
+		},
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
+		.address = MPU6500_REG_GYRO_X_OUT,
+	},
+	{
+		.type = IIO_ANGL_VEL,
+		.modified = 1,
+		.channel2 = IIO_MOD_Y,
+		.scan_index = MPU6500_SCAN_GYRO_Y,
+		.scan_type = {
+			.sign = 's',
+			.realbits = 16,
+			.storagebits = 16,
+			.endianness = IIO_BE,
+		},
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
+		.address = MPU6500_REG_GYRO_Y_OUT,
+	},
+	{
+		.type = IIO_ANGL_VEL,
+		.modified = 1,
+		.channel2 = IIO_MOD_Z,
+		.scan_index = MPU6500_SCAN_GYRO_Z,
+		.scan_type = {
+			.sign = 's',
+			.realbits = 16,
+			.storagebits = 16,
+			.endianness = IIO_BE,
+		},
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
+		.address = MPU6500_REG_GYRO_Z_OUT,
+	},
+	IIO_CHAN_SOFT_TIMESTAMP(MPU6500_SCAN_TIMESTAMP),
 };
 
 
 /*mpu6500 Functions*/
 
 /*Chip config function*/
-// static int mpu6500_chip_config(struct mpu6500_data *data){
-// 	u8 osrs = FIELD_PREP(mpu6500_OSRS_PRESS_MASK, data->oversampling_pressure) | 
-// 		  FIELD_PREP(mpu6500_OSRS_TEMP_MASK, data->oversampling_temp) | 
-// 		  mpu6500_MODE_FORCED;
+static int mpu6500_chip_config(struct mpu6500_data *data){
+	int ret;
 
-// 	int ret;
+	ret = regmap_multi_reg_write(data->regmap, mpu6500_init_seq, ARRAY_SIZE(mpu6500_init_seq));
 
-// 	ret = regmap_write_bits(data->regmap, mpu6500_REG_CTRL_MEAS, mpu6500_OSRS_TEMP_MASK |
-// 				mpu6500_OSRS_PRESS_MASK| mpu6500_MODE_MASK, osrs);
+	if (ret){
+		dev_err(data->dev, "Failed to write init sequence!\n");
+		return ret;
+	}
 
-// 	if (ret) {	//ret = 0 for success 
-// 		dev_err(data->dev, "failed to write ctrl_meas register\n");
-// 		return ret;
-// 	}
+	dev_info(data->dev, "Config succesful\n");
 
-// 	dev_info(data->dev, "Config succesful\n");
+	return 0;
+}
 
-// 	return ret;
-// }
-
-
-/*IIO Read raw implementation for temperature and pressure*/
-// static int mpu6500_read_raw_impl(struct iio_dev *indio_dev,
-// 				struct iio_chan_spec const *chan,
-// 				int *val, int *val2, long mask){
-	
-// 	struct mpu6500_data *data = iio_priv(indio_dev);
-// 	int chan_value;
-// 	int ret;
-
-// 	guard(mutex)(&data->lock);		//New api for mutex locking. Auto unlocks
-
-// 	switch (mask)
-// 	{
-// 	case IIO_CHAN_INFO_RAW:
-// 		switch (chan->type)
-// 		{
-// 		case IIO_TEMP:
-// 			ret = mpu6500_chip_config(data);
-// 			if (ret) 
-// 				return ret;
-
-// 			msleep(100);		//45ms sleep for measurement to complete
-
-// 			ret = mpu6500_read_temp(data, &chan_value);
-// 			if (ret)
-// 				return ret;
-// 			*val = chan_value;
-// 			return IIO_VAL_INT;
-// 			break;
-// 		case IIO_PRESSURE:
-// 			ret = mpu6500_chip_config(data);
-// 			if (ret) 
-// 				return ret;
-
-// 			msleep(100);		//45ms sleep for measurement to complete
-
-// 			ret = mpu6500_read_pressure(data, &chan_value);
-// 			if (ret)
-// 				return ret;
-// 			*val = chan_value;
-// 			return IIO_VAL_INT;
-// 			break;
-// 		default:
-// 			return -EINVAL;
-// 		}
-	
-// 	default:
-// 		return -EINVAL;
-// 	}
-// 	return -EINVAL;
-// }
 
 /*mpu6500 IIO Functions*/
 
@@ -110,12 +149,61 @@ static int mpu6500_read_raw(struct iio_dev *indio_dev,
                            struct iio_chan_spec const *chan,
                            int *val, int *val2, long mask){
 	
-	//struct mpu6500_data *data = iio_priv(indio_dev);
+	struct mpu6500_data *data = iio_priv(indio_dev);
 	int ret;
+	__be16 raw_val;
+	unsigned int pwr_val;
 
-	// ret = mpu6500_read_raw_impl(indio_dev, chan, val, val2, mask);
+	regmap_read(data->regmap, MPU6500_REG_PWR_MGMT1, &pwr_val);
+	dev_info(data->dev, "PWR REG Value: %u", pwr_val);
 
-	return 0;
+	guard(mutex)(&data->lock);
+	
+	switch (mask)
+	{
+	case IIO_CHAN_INFO_RAW:
+
+		ret = regmap_bulk_read(data->regmap, chan->address, &raw_val, sizeof(raw_val));
+		if (ret){
+			dev_err(data->dev, "Failed to read sensor value");
+			return ret;
+		}
+
+		*val = be16_to_cpu(raw_val);
+		return IIO_VAL_INT;
+	
+	case IIO_CHAN_INFO_SCALE:
+		switch (chan->type)	
+		{
+		case IIO_ACCEL:
+			*val = 0;
+			*val2 = 598550;
+			return IIO_VAL_INT_PLUS_MICRO;
+		
+		case IIO_ANGL_VEL:
+			*val = 0;
+			*val2 = 133232;
+			return IIO_VAL_INT_PLUS_MICRO;
+			
+		case IIO_TEMP:
+			*val = 2;
+			*val2 = 995177;
+			return IIO_VAL_INT_PLUS_MICRO;
+
+		default:
+			return -EINVAL;
+		}
+	
+	case IIO_CHAN_INFO_OFFSET:
+		if (chan->type == IIO_TEMP) {
+			*val = 7011;
+			return IIO_VAL_INT;
+		}
+		return -EINVAL;
+
+	default:
+		return -EINVAL;
+	}
 }
 
 static int mpu6500_write_raw(struct iio_dev *indio_dev,
@@ -134,45 +222,31 @@ static const struct iio_info mpu6500_info = {		//Containts const info about iio 
 
 
 /*Regmap config struct Setup*/
-// static bool mpu6500_is_writeable_reg(struct device *dev, unsigned int reg)
-// {
-// 	switch(reg) {
-// 	// case mpu6500_REG_CONFIG:
-// 		return true;
-// 	default:
-// 		return false;
-// 	}
-// }
-
-// static bool mpu6500_is_volatile_reg(struct device *dev, unsigned int reg)
-// {
-// 	switch(reg) {
-// 	// case mpu6500_REG_TEMP_LSB:
-// 		return true;
-// 	default:
-// 		return false;
-// 	}
-// }
+static bool mpu6500_is_volatile_reg(struct device *dev, unsigned int reg)
+{
+	if ((reg >= 0x3B) || (reg >= 0x48))
+		return true;
+	else	
+		return false;
+}
 
 /*regmap config for mpu6500*/
 const struct regmap_config mpu6500_regmap_config = {
 	.reg_bits = 8,		//Register addr size = 8bits
 	.val_bits = 8,		//Register Value size = 8bits		
 
-	.max_register = mpu6500_REG_ID,
-	.cache_type = REGCACHE_RBTREE,			//RB Tree better for non contiguous reg
+	.max_register = MPU6500_REG_WHO_AM_I,
+	.volatile_reg = mpu6500_is_volatile_reg,
 
-	// .writeable_reg = mpu6500_is_writeable_reg,
-	// .volatile_reg = mpu6500_is_volatile_reg,
 };
 
 const struct mpu6500_chip_info mpu6500_chip_info = {
-	.id_reg = mpu6500_REG_ID,
-	.chip_id = mpu6500_CHIP_ID,
+	.id_reg = MPU6500_REG_WHO_AM_I,
+	.chip_id = MPU6500_WHOAMI_VALUE,
 
 	.regmap_config = &mpu6500_regmap_config,
 	.channels = mpu6500_channels,
-	.num_channels = 2,
+	.num_channels = 8,
 };
 
 
@@ -247,9 +321,9 @@ static int mpu6500_i2c_probe(struct i2c_client *client)
 		dev_warn(dev, "bad chip id: 0x%x is not known\n", chip_id);
 
 
-	// ret = mpu6500_chip_config(data);
-	// if (ret)
-	// 	return ret;
+	ret = mpu6500_chip_config(data);
+	if (ret)
+		return ret;
 
 	
 	// ret = mpu6500_read_calib(data);
