@@ -27,7 +27,7 @@
 		__overlay__ {
 			mpu_irq_pins: mpu_irq_pins{
 				pinctrl-single,pins = <0x040 0x2F>;
-			}
-		}
-	}
+			};
+		};
+	};
 };
