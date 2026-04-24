@@ -8,7 +8,10 @@
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
 #include <linux/regmap.h>
-
+#include <linux/interrupt.h>
+#include <linux/iio/triggered.h>
+#include <linux/iio/triggered_buffer.h>
+#include <linux/iio/trigger_consumer.h>
 
 #include "mpu6500-udayan.h"
 
@@ -249,6 +252,32 @@ const struct mpu6500_chip_info mpu6500_chip_info = {
 	.num_channels = 8,
 };
 
+/*Interrupt Code*/
+
+/*Bottom Half: IRQ Thread. Can sleep*/
+static irqreturn_t mpu6500_trigger_handler(int irq, void *p){
+	struct iio_poll_func *pf = p;
+	struct iio_dev *indio_dev = pf->indio_dev;
+	struct mpu6500_data *data = iio_priv(indio_dev);
+	int ret;
+
+	guard(mutex)(&data->lock);		//Lock mutex to block access during interrupt handling
+
+	//Bulk read starting from ACCEL_X_OUT register, Autoincrements register pointer and stores byte wise into scan.channels
+	ret = regmap_bulk_read(data->regmap, MPU6500_REG_ACCEL_X_OUT, &data->scan.channels, sizeof(data->scan.channels));
+
+	if (ret) {
+		dev_err(data->dev, "Failed to read sensor data in trigger\n");
+	}
+	else{
+		iio_push_to_buffers_with_timestamp(indio_dev, &data->scan, pf->timestamp);	//Pushes sensor data read along with timestamp to IIO subsystem (KFIFO ring buffer)
+	}
+
+	iio_trigger_notify_done(indio_dev->trig);
+
+	return IRQ_HANDLED;
+}
+
 
 /*Driver Probe Function*/
 static int mpu6500_i2c_probe(struct i2c_client *client)
@@ -325,7 +354,48 @@ static int mpu6500_i2c_probe(struct i2c_client *client)
 	if (ret)
 		return ret;
 
-	
+	if (client->irq > 0) {
+
+		data->trig = devm_iio_trigger_alloc(dev, "%s-dev%d", indio_dev->name, iio_device_id(indio_dev));	//Allocate iio trigger
+		if (!data->trip) {
+			dev_err(dev, "IIO Trigger not allocated\n");
+			return -ENOMEM;
+		}
+
+		data->trig->dev.parent = dev;
+		iio_trigger_set_drvdata(data->trig, indio_dev);		//Adds a indio dev reference to the iio trig struct
+
+		ret = devm_request_threaded_irq(dev, client->irq,			//Requests IRQ Thread. Runs top half and passes bottom half work to iio
+						iio_trigger_generic_data_rdy_poll,
+						NULL,
+						IRQF_TRIGGER_RISING | IRQF_ONESHOT,	//Rising trigger and one shot blocks pin until iio notifies done
+						data->trig->name,
+						data->trig);
+
+		if (ret) {
+			dev_err(dev, "Failed to request IRQ %d\n",client->irq);
+			return ret;
+		}
+
+		ret = devm_iio_trigger_register(dev, data->trig);		//Registers trigger with kernel
+		if (ret) {
+			dev_err(dev, "Failed to register trigger with device\n");
+			return ret;
+		}
+
+		indio_dev->trig = iio_trigger_get(data->trig);			//Set device default trigger
+
+		ret = devm_iio_triggered_buffer_setup(dev, indio_dev, iio_pollfunc_store_time, mpu6500_trigger_handler, NULL);	//Sets up KFIFO tied to this device
+		if (ret) {
+			dev_err(dev, "Failed t setup triggered buffer\n");
+			return ret;
+		}
+
+	}
+	else {
+		dev_info(dev, "No IRQ found in device tree, polling mode only\n");
+	}
+
 	// ret = mpu6500_read_calib(data);
 	// if (ret)
 	// 	return ret;
@@ -333,7 +403,7 @@ static int mpu6500_i2c_probe(struct i2c_client *client)
 	//Stores device private data
 	dev_set_drvdata(dev, indio_dev);		
 
-	dev_info(&client->dev, "mpu6500 Probe Complete\n");
+	dev_info(dev, "mpu6500 Probe Complete\n");
 
 	
 	return devm_iio_device_register(dev, indio_dev);
@@ -342,7 +412,7 @@ static int mpu6500_i2c_probe(struct i2c_client *client)
 
 /*Device Tree Match Table*/
 static const struct of_device_id mpu6500_of_i2c_match[] = {
-	{ .compatible = "invensence,mpu6500", .data = &mpu6500_chip_info },
+	{ .compatible = "invensense,mpu6500", .data = &mpu6500_chip_info },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, mpu6500_of_i2c_match);
