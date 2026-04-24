@@ -65,7 +65,13 @@ struct mpu6500_data
 	struct mutex lock;		//Mutex Lock
 	struct regmap *regmap;
 
-    	struct mpu6500_chip_info *chip_info;
+    struct mpu6500_chip_info *chip_info;
+	struct iio_trigger *trig;
+
+	struct {
+		__be16 channels[7];
+		s64 timestamp __aligned(8);
+	} scan;
 
 	s32 t_fine;
 };
@@ -76,7 +82,7 @@ struct mpu6500_chip_info {
     	const u8 chip_id;              //Chip id
 
     	const struct regmap_config *regmap_config;      //regmap configurations
-   	const struct iio_chan_spec *channels;           //iio spec channels
+   		const struct iio_chan_spec *channels;           //iio spec channels
     	const int num_channels;         //Channel count                      
 };
 
