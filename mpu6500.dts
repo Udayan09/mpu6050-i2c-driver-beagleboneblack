@@ -11,11 +11,15 @@
             #size-cells = <0>;
 
 			mpu6500@68 {
-				compatible = "invensence,mpu6500";
+				compatible = "invensene,mpu6500";
 				reg = <0x68>;
 
+				/*Pin Multiplexing*/
+				pinctrl-names = "default";
+				pinctrl-0 = <&mpu_irq_pins>;
+
 				interrupt-parent = <&gpio1>;
-				interrupts = <16 1>;		/*GPIO1 pin15 Rising edge*/
+				interrupts = <16 1>;		/*GPIO1 pin16 (P9_15) Rising edge*/
 			};
 		};
 	};
@@ -26,7 +30,7 @@
 		target = <&am33xx_pinmux>;
 		__overlay__ {
 			mpu_irq_pins: mpu_irq_pins{
-				pinctrl-single,pins = <0x040 0x2F>;
+				pinctrl-single,pins = <0x040 0x2F>;		/*P9_15: Input mode, pull disabled, Mode 7 (GPIO)*/
 			};
 		};
 	};
